@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RichTextUploadController;
@@ -16,6 +17,10 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout']);
 
 Route::middleware('auth')->group(function () {
+	Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+	Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+	Route::patch('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password.update');
+
 	Route::get('/performance', [PerformanceController::class, 'index'])
 			->middleware('role:admin')
 		->name('performance');

@@ -177,6 +177,9 @@
 
 							<div class="flex items-center gap-3">
 								<div class="hidden text-sm font-medium text-slate-700 sm:block">{{ auth()->user()->name }}</div>
+								<a href="{{ route('profile.edit') }}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+									Profile
+								</a>
 								<form method="POST" action="/logout">
 									@csrf
 									<button type="submit" class="rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">
