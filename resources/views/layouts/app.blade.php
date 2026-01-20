@@ -154,6 +154,18 @@
 				<div class="min-w-0 flex-1">
 					<header class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
 						<div class="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4">
+							<button
+								id="gb-mobile-nav-open"
+								type="button"
+								class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 lg:hidden"
+								aria-label="Open menu"
+							>
+								<svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" xmlns="http://www.w3.org/2000/svg">
+									<path d="M4 7h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+									<path d="M4 12h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+									<path d="M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+								</svg>
+							</button>
 							<div class="flex-1">
 								@canany(['projects.view', 'projects.manage', 'tasks.view', 'tasks.manage'])
 									<form method="GET" action="/search" class="max-w-2xl">
@@ -189,6 +201,79 @@
 							</div>
 						</div>
 					</header>
+
+					<!-- Mobile menu overlay (small screens only) -->
+					<div id="gb-mobile-nav" style="display:none; position: fixed; inset: 0; z-index: 60;">
+						<div id="gb-mobile-nav-backdrop" style="position:absolute; inset:0; background: rgba(15,23,42,.55);"></div>
+						<div role="dialog" aria-modal="true" aria-label="Menu" style="position:absolute; top: 0; left: 0; height: 100%; width: 320px; max-width: calc(100vw - 56px); background: #0f172a; color: #f8fafc; box-shadow: 0 25px 50px -12px rgba(0,0,0,.45);">
+							<div style="display:flex; align-items:center; justify-content: space-between; padding: 14px 14px 10px; border-bottom: 1px solid rgba(255,255,255,.08);">
+								<div style="font-weight: 700; font-size: 14px; letter-spacing: .01em;">Menu</div>
+								<button id="gb-mobile-nav-close" type="button" aria-label="Close menu" style="appearance:none; border:0; background: rgba(255,255,255,.08); color:#fff; border-radius: 12px; padding: 8px 10px; cursor:pointer;">
+									✕
+								</button>
+							</div>
+							<div style="padding: 12px 10px;">
+								@foreach ($nav as $item)
+									@php
+										$active = $item['match']();
+									@endphp
+									<a href="{{ $item['href'] }}" style="display:flex; align-items:center; gap: 10px; padding: 10px 12px; border-radius: 14px; margin-bottom: 6px; color: rgba(248,250,252,.92); text-decoration:none; background: {{ $active ? 'rgba(255,255,255,.12)' : 'transparent' }};">
+										<span style="display:inline-flex; height: 34px; width: 34px; align-items:center; justify-content:center; border-radius: 12px; background: rgba(255,255,255,.08);">
+											<svg viewBox="0 0 24 24" style="height: 16px; width: 16px;" fill="none" xmlns="http://www.w3.org/2000/svg">
+												<path d="M4 12a8 8 0 1 1 16 0a8 8 0 0 1-16 0Z" stroke="currentColor" stroke-width="2" opacity=".25"/>
+												<path d="M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+											</svg>
+										</span>
+										<span style="font-size: 14px; font-weight: 600;">{{ $item['label'] }}</span>
+									</a>
+								@endforeach
+
+								@can('users.manage')
+									<a href="{{ route('admin.users.index') }}" style="display:flex; align-items:center; gap: 10px; padding: 10px 12px; border-radius: 14px; margin-top: 8px; color: rgba(248,250,252,.92); text-decoration:none; background: {{ request()->is('admin/*') ? 'rgba(255,255,255,.12)' : 'transparent' }};">
+										<span style="display:inline-flex; height: 34px; width: 34px; align-items:center; justify-content:center; border-radius: 12px; background: rgba(255,255,255,.08);">
+											<svg viewBox="0 0 24 24" style="height: 16px; width: 16px;" fill="none" xmlns="http://www.w3.org/2000/svg">
+												<path d="M12 2a5 5 0 0 0-5 5v1a5 5 0 1 0 10 0V7a5 5 0 0 0-5-5Z" stroke="currentColor" stroke-width="2"/>
+												<path d="M4 22a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+										</svg>
+										</span>
+										<span style="font-size: 14px; font-weight: 600;">Admin</span>
+									</a>
+								@endcan
+
+								<div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.08); display:flex; gap: 10px;">
+									<a href="{{ route('profile.edit') }}" style="flex:1; text-align:center; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.10); color: rgba(248,250,252,.95); text-decoration:none; font-weight: 700; font-size: 13px;">Profile</a>
+									<form method="POST" action="/logout" style="flex:1;">
+										@csrf
+										<button type="submit" style="width:100%; padding: 10px 12px; border-radius: 14px; border: 0; cursor:pointer; background: rgba(255,255,255,.16); color: rgba(248,250,252,.98); font-weight: 700; font-size: 13px;">Logout</button>
+									</form>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<script>
+						(function () {
+							const openBtn = document.getElementById('gb-mobile-nav-open');
+							const overlay = document.getElementById('gb-mobile-nav');
+							const closeBtn = document.getElementById('gb-mobile-nav-close');
+							const backdrop = document.getElementById('gb-mobile-nav-backdrop');
+							if (!openBtn || !overlay) return;
+							const open = () => {
+								overlay.style.display = 'block';
+								document.body.style.overflow = 'hidden';
+							};
+							const close = () => {
+								overlay.style.display = 'none';
+								document.body.style.overflow = '';
+							};
+							openBtn.addEventListener('click', open);
+							closeBtn && closeBtn.addEventListener('click', close);
+							backdrop && backdrop.addEventListener('click', close);
+							document.addEventListener('keydown', (e) => {
+								if (e.key === 'Escape') close();
+							});
+						})();
+					</script>
 
 					<main class="mx-auto max-w-7xl px-4 py-6">
 						@php
