@@ -30,7 +30,7 @@ The app uses role-based access control.
 - **Admin**: Full access, can manage users/roles/permissions.
 - **Manager**: Can manage teams/projects/tasks (but not users).
 - **Member**: Can view teams/projects/tasks, **create tasks**, and **comment on tasks**.
-- **Viewer**: Can view teams/projects/tasks/performance, but cannot create/update/delete.
+- **Viewer**: Can view teams/projects/tasks, but cannot create/update/delete.
 
 Screenshot (menus differ by role):
 
@@ -42,7 +42,7 @@ Common permissions you may see in the Admin UI:
 - `projects.view`, `projects.manage`
 - `tasks.view`, `tasks.manage`
 - `comments.view`, `comments.manage`
-- `performance.view`
+- `performance.view` (legacy)
 - `users.view`, `users.manage`
 
 Some modules also have more granular permissions:
@@ -52,7 +52,24 @@ Some modules also have more granular permissions:
 
 ---
 
-## 3) Teams
+## 3) My Profile
+
+Click **Profile** in the top header to open your profile page.
+
+You can:
+- Update your **name**
+- Change your **password**
+
+Notes:
+- Your **email address cannot be changed** from the Profile page.
+
+Screenshot:
+
+Screenshot (add later): `docs/images/user-profile.png`
+
+---
+
+## 4) Teams
 
 Go to **Teams** to:
 - View teams you own or are a member of.
@@ -67,7 +84,7 @@ Screenshot (add later): `docs/images/user-03-teams.png`
 
 ---
 
-## 4) Projects
+## 5) Projects
 
 Go to **Projects** to:
 - View projects belonging to teams you can access (requires `projects.view`).
@@ -79,7 +96,7 @@ Screenshot (add later): `docs/images/user-04-projects.png`
 
 ---
 
-## 5) Tasks
+## 6) Tasks
 
 Go to **Tasks** to:
 - View tasks in projects you can access (requires `tasks.view`).
@@ -147,7 +164,7 @@ Screenshot (add later): `docs/images/12-drawer-open.png`
 
 ---
 
-## 6) Boards (Drag & Drop)
+## 7) Boards (Drag & Drop)
 
 Open a project board from a project’s **Board** view.
 
@@ -164,7 +181,7 @@ Screenshot (add later): `docs/images/user-08-board.png`
 
 ---
 
-## 7) Task Comments
+## 8) Task Comments
 
 Each task has a detail page:
 - Open **Tasks**
@@ -185,9 +202,9 @@ Screenshot (add later): `docs/images/user-09-comments.png`
 
 ---
 
-## 8) Performance Dashboard
+## 9) Performance Dashboard
 
-Go to **Performance** (requires `performance.view`) to see:
+Go to **Performance** (**Admin only**) to see:
 - Total tasks
 - Breakdown by status
 - Breakdown by assignee
@@ -199,7 +216,7 @@ Screenshot (add later): `docs/images/user-10-performance.png`
 
 ---
 
-## 9) Search
+## 10) Search
 
 Use the top search bar to search:
 - Projects
@@ -214,7 +231,7 @@ Screenshot (add later): `docs/images/user-11-search.png`
 
 ---
 
-## 10) Admin: User Management
+## 11) Admin: User Management
 
 Admins can manage users at **Admin → Users**.
 
@@ -239,7 +256,7 @@ Notes:
 
 ---
 
-## 11) Troubleshooting
+## 12) Troubleshooting
 
 ### “Page has no styling / CSS missing”
 This usually happens when the app thinks the Vite dev server is running.
