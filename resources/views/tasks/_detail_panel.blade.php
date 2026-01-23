@@ -130,6 +130,11 @@
 							<label class="mb-1 block text-xs font-medium text-slate-600">Assignee</label>
 							<select name="assigned_to" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-100">
 								<option value="">Unassigned</option>
+								@if(!empty($selectedTask->assignee) && !$users->contains('id', $selectedTask->assignee->id))
+									<option value="{{ $selectedTask->assignee->id }}" @selected((string) old('assigned_to', $selectedTask->assigned_to) === (string) $selectedTask->assignee->id)>
+										{{ $selectedTask->assignee->name }} (current)
+									</option>
+								@endif
 								@foreach($users as $user)
 									<option value="{{ $user->id }}" @selected((string) old('assigned_to', $selectedTask->assigned_to) === (string) $user->id)>{{ $user->name }}</option>
 								@endforeach

@@ -58,13 +58,18 @@ class TaskController extends Controller
         }
 
         if ($currentUser->hasRole('manager')) {
-            return User::query()
+            $memberIds = User::query()
                 ->whereIn('id', $accessibleUserIds)
                 ->role('member')
                 ->whereDoesntHave('roles', function ($q) {
                     $q->whereIn('name', ['admin', 'manager']);
                 })
                 ->pluck('id');
+
+            return $memberIds
+                ->merge([(int) $currentUser->id])
+                ->unique()
+                ->values();
         }
 
         return collect([(int) $currentUser->id]);
@@ -88,7 +93,7 @@ class TaskController extends Controller
         }
 
         if ($currentUser->hasRole('manager')) {
-            return 'Managers can assign tasks to Members only.';
+            return 'Managers can assign tasks to members or themselves only.';
         }
 
         if ($currentUser->hasRole('member')) {
@@ -544,7 +549,12 @@ class TaskController extends Controller
             ->firstOrFail();
 
         $assignedTo = $data['assigned_to'] ?? null;
-        if ($assignedTo !== null) {
+        $assigneeChanged = (string) ($assignedTo ?? '') !== (string) ($task->assigned_to ?? '');
+
+        // Only enforce assignee restrictions when changing the assignee.
+        // This prevents existing tasks (assigned by an admin, or before role changes)
+        // from becoming impossible to edit.
+        if ($assigneeChanged && $assignedTo !== null) {
             if (!$this->canAssignTo((int) $assignedTo)) {
                 return back()->withErrors(['assigned_to' => $this->assigneeNotAllowedMessage((int) $assignedTo)]);
             }
