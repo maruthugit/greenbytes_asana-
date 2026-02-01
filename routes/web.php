@@ -8,6 +8,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RichTextUploadController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskCommentController;
 use App\Http\Controllers\TeamController;
 use Illuminate\Support\Facades\Route;
@@ -102,6 +103,23 @@ Route::middleware('auth')->group(function () {
 	Route::post('/uploads/richtext', [RichTextUploadController::class, 'store'])
 		->middleware('permission:tasks.manage|tasks.update')
 		->name('uploads.richtext');
+	Route::get('/uploads/public/{path}', [RichTextUploadController::class, 'show'])
+		->middleware('permission:tasks.view|tasks.manage|tasks.update')
+		->where('path', '.*')
+		->name('uploads.public');
+
+	Route::get('/tasks/{task}/attachments/{attachment}', [TaskAttachmentController::class, 'show'])
+		->middleware('permission:tasks.view|tasks.manage')
+		->name('tasks.attachments.show');
+	Route::post('/tasks/{task}/attachments', [TaskAttachmentController::class, 'store'])
+		->middleware('permission:tasks.manage|tasks.update')
+		->name('tasks.attachments.store');
+	Route::get('/tasks/{task}/attachments/{attachment}/download', [TaskAttachmentController::class, 'download'])
+		->middleware('permission:tasks.view|tasks.manage')
+		->name('tasks.attachments.download');
+	Route::delete('/tasks/{task}/attachments/{attachment}', [TaskAttachmentController::class, 'destroy'])
+		->middleware('permission:tasks.manage|tasks.update|tasks.attachments.delete')
+		->name('tasks.attachments.file.destroy');
 
 	Route::get('/tasks/{task}', [TaskController::class, 'show'])
 		->middleware('permission:tasks.view|tasks.manage')

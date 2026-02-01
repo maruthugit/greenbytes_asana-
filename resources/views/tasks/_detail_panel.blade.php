@@ -74,6 +74,27 @@
 						<input name="image" type="file" accept="image/*" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200" />
 					</div>
 
+					<div data-attachments-picker>
+						<label class="mb-1 block text-xs font-medium text-slate-600">Attachments (optional)</label>
+						<div class="mt-2 flex flex-wrap items-center gap-2">
+							<input
+								name="attachments[]"
+								type="file"
+								multiple
+								accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+								class="hidden"
+								data-attachments-input
+							/>
+							<label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-attachments-button>
+								<span class="text-lg">+</span>
+								Add attachments
+							</label>
+							<button type="button" class="hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-attachments-clear>Clear</button>
+						</div>
+						<div class="mt-1 text-xs text-slate-500" data-attachments-help>You can select multiple files (images, PDF, DOC/DOCX).</div>
+						<div class="mt-3 hidden grid grid-cols-2 gap-3 sm:grid-cols-3" data-attachments-preview></div>
+					</div>
+
 					<div class="flex items-center justify-end gap-3">
 						<button class="rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Create task</button>
 					</div>
@@ -116,7 +137,7 @@
 			</div>
 
 			@canany(['tasks.manage', 'tasks.update'])
-				<form method="POST" action="{{ route('tasks.update', $selectedTask) }}" class="mt-4 space-y-4">
+				<form method="POST" action="{{ route('tasks.update', $selectedTask) }}" enctype="multipart/form-data" class="mt-4 space-y-4">
 					@csrf
 					@method('PATCH')
 
@@ -208,21 +229,75 @@
 						@endif
 					</div>
 				</div>
+
+				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+					<div>
+						<label class="mb-1 block text-xs font-medium text-slate-600">Replace image (optional)</label>
+						<input name="image" type="file" accept="image/*" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200" />
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-medium text-slate-600">Add attachments (optional)</label>
+						<input name="attachments[]" type="file" multiple accept="image/*,.pdf,.doc,.docx" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200" />
+						<div class="mt-1 text-xs text-slate-500">Adds files to this task (images, PDF, DOC/DOCX).</div>
+					</div>
+				</div>
 			@endcanany
 
 			@if($selectedTask->image_path)
 				<div class="mt-5">
 					<div class="text-xs font-medium text-slate-500">Image</div>
-					<a href="{{ \Illuminate\Support\Facades\Storage::url($selectedTask->image_path) }}" target="_blank" class="mt-2 inline-flex items-center gap-2">
+					<div class="mt-2 flex items-center gap-3">
+						<a href="{{ route('uploads.public', ['path' => $selectedTask->image_path], false) }}" target="_blank" class="inline-flex items-center gap-2">
 						<img
-							src="{{ \Illuminate\Support\Facades\Storage::url($selectedTask->image_path) }}"
+							src="{{ route('uploads.public', ['path' => $selectedTask->image_path], false) }}"
 							alt="Task image"
 							class="h-24 w-24 rounded-xl border border-slate-200 object-cover"
 							loading="lazy"
 						/>
 						<span class="text-sm font-medium text-indigo-700 hover:underline">Open</span>
-					</a>
+						</a>
+						<a href="{{ route('uploads.public', ['path' => $selectedTask->image_path], false) }}?download=1" class="text-sm font-medium text-slate-700 hover:underline">Download</a>
+					</div>
 				</div>
+			@endif
+
+			@php
+				$hasAttachments = ($selectedTask->attachments ?? collect())->count() > 0;
+			@endphp
+			@if($hasAttachments)
+				<div class="mt-5">
+					<div class="text-xs font-medium text-slate-500">Attachments</div>
+					<div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+						@foreach($selectedTask->attachments as $att)
+							@include('tasks._attachment_card', ['task' => $selectedTask, 'att' => $att, 'showDelete' => auth()->user()->can('tasks.manage') || auth()->user()->can('tasks.update') || auth()->user()->can('tasks.attachments.delete')])
+						@endforeach
+						@canany(['tasks.manage', 'tasks.update'])
+							<form method="POST" action="{{ route('tasks.attachments.store', $selectedTask) }}" enctype="multipart/form-data" class="h-full">
+								@csrf
+								<input id="task-attachments-upload-{{ $selectedTask->id }}" type="file" name="attachments[]" multiple accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" onchange="this.form.submit()" />
+								<label for="task-attachments-upload-{{ $selectedTask->id }}" class="flex h-full cursor-pointer items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-slate-500 hover:border-slate-400 hover:bg-slate-100">
+									<span class="text-2xl font-semibold">+</span>
+								</label>
+							</form>
+						@endcanany
+					</div>
+				</div>
+			@else
+				@canany(['tasks.manage', 'tasks.update'])
+					<div class="mt-5">
+						<div class="text-xs font-medium text-slate-500">Attachments</div>
+						<div class="mt-2">
+							<form method="POST" action="{{ route('tasks.attachments.store', $selectedTask) }}" enctype="multipart/form-data">
+								@csrf
+								<input id="task-attachments-upload-empty-{{ $selectedTask->id }}" type="file" name="attachments[]" multiple accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" onchange="this.form.submit()" />
+								<label for="task-attachments-upload-empty-{{ $selectedTask->id }}" class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+									<span class="text-lg">+</span>
+									Add attachments
+								</label>
+							</form>
+						</div>
+					</div>
+				@endcanany
 			@endif
 
 			<div class="mt-6 border-t border-slate-200 pt-5" data-activity-tabs-root>
@@ -265,6 +340,29 @@
 						}
 					}
 					$activity = $activity->sortBy('at');
+					$attachmentsById = ($selectedTask->attachments ?? collect())->keyBy('id');
+					$commentFeed = collect();
+					foreach (($selectedTask->activities ?? collect()) as $a) {
+						if ((string) $a->type === 'attachments.added') {
+							$commentFeed = $commentFeed->push([
+								'type' => 'attached',
+								'at' => $a->created_at,
+								'user' => $a->user,
+								'meta' => $a->meta ?? [],
+							]);
+						}
+					}
+					if ($canViewComments) {
+						foreach ($selectedTask->comments as $c) {
+							$commentFeed = $commentFeed->push([
+								'type' => 'comment',
+								'at' => $c->created_at,
+								'user' => $c->user,
+								'body' => $c->body,
+							]);
+						}
+					}
+					$commentFeed = $commentFeed->sortBy('at');
 				@endphp
 
 				<div class="flex items-center justify-between gap-3">
@@ -278,9 +376,11 @@
 				<div class="mt-4" data-activity-panel="comments" style="{{ $tab === 'comments' ? '' : 'display:none' }}">
 					@if($canViewComments)
 						<div class="space-y-4">
-							@forelse($selectedTask->comments as $comment)
+							@forelse($commentFeed as $item)
 							@php
-								$author = $comment->user;
+								$author = $item['user'] ?? null;
+								$at = $item['at'] ?? null;
+								$t = (string) ($item['type'] ?? '');
 							@endphp
 							<div class="flex items-start gap-3">
 								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-800">
@@ -289,9 +389,25 @@
 								<div class="min-w-0 flex-1">
 									<div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
 										<div class="text-sm font-semibold text-slate-900">{{ $author?->name ?? 'Unknown' }}</div>
-										<div class="text-xs text-slate-500">{{ $comment->created_at?->diffForHumans() }}</div>
+										<div class="text-xs text-slate-500">{{ $at?->diffForHumans() }}</div>
 									</div>
-									<div class="mt-1 whitespace-pre-wrap text-sm text-slate-700">{{ $comment->body }}</div>
+									@if($t === 'comment')
+										<div class="mt-1 whitespace-pre-wrap text-sm text-slate-700">{{ $item['body'] ?? '' }}</div>
+									@else
+										<div class="mt-1 text-sm text-slate-700">attached</div>
+										@php
+											$meta = (array) ($item['meta'] ?? []);
+											$ids = (array) ($meta['attachment_ids'] ?? []);
+											$atts = collect($ids)->map(fn ($id) => $attachmentsById->get((int) $id))->filter();
+										@endphp
+										@if($atts->count())
+											<div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+												@foreach($atts as $att)
+													@include('tasks._attachment_card', ['task' => $selectedTask, 'att' => $att, 'showDelete' => false])
+												@endforeach
+											</div>
+										@endif
+									@endif
 								</div>
 							</div>
 							@empty
@@ -378,12 +494,14 @@
 													}
 												} elseif ($ct === 'description.updated') {
 													$msg = 'updated description';
+												} elseif ($ct === 'attachments.added') {
+													$msg = 'attached';
 												} elseif ($ct === 'attachment.removed') {
 													$msg = 'removed an attachment';
 												} elseif ($ct === 'image.removed') {
 													$msg = 'removed the task image';
 												} else {
-												$msg = 'updated task';
+													$msg = 'updated task';
 												}
 											@endphp
 											<div class="text-sm text-slate-700">
@@ -393,6 +511,19 @@
 													<span class="text-slate-500">· {{ $at->diffForHumans() }}</span>
 												@endif
 											</div>
+											@if($ct === 'attachments.added')
+												@php
+													$ids = (array) ($meta['attachment_ids'] ?? []);
+													$atts = collect($ids)->map(fn ($id) => $attachmentsById->get((int) $id))->filter();
+												@endphp
+												@if($atts->count())
+													<div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+														@foreach($atts as $att)
+															@include('tasks._attachment_card', ['task' => $selectedTask, 'att' => $att, 'showDelete' => false])
+														@endforeach
+													</div>
+												@endif
+											@endif
 									@else
 										<div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
 											<div class="text-sm font-semibold text-slate-900">{{ $user?->name ?? 'Unknown' }}</div>

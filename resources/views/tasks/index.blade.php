@@ -205,7 +205,7 @@
 									</div>
 									<div class="mt-3 flex flex-wrap items-center gap-2">
 										<a href="{{ $item['url'] }}" target="_blank" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Open</a>
-										<a href="{{ $item['url'] }}" download class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Download</a>
+										<a href="{{ str_contains($item['url'], '?') ? ($item['url'] . '&download=1') : ($item['url'] . '?download=1') }}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Download</a>
 										@canany(['tasks.manage', 'tasks.update', 'tasks.attachments.delete'])
 											<form method="POST" action="{{ route('tasks.attachments.destroy', $task) }}" onsubmit="return confirm('Delete this attachment?');">
 												@csrf
@@ -238,7 +238,7 @@
 									</div>
 									<div class="flex shrink-0 items-center gap-2">
 										<a href="{{ $item['url'] }}" target="_blank" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Open</a>
-										<a href="{{ $item['url'] }}" download class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Download</a>
+										<a href="{{ str_contains($item['url'], '?') ? ($item['url'] . '&download=1') : ($item['url'] . '?download=1') }}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Download</a>
 										@canany(['tasks.manage', 'tasks.update', 'tasks.attachments.delete'])
 											<form method="POST" action="{{ route('tasks.attachments.destroy', $task) }}" onsubmit="return confirm('Delete this attachment?');">
 												@csrf

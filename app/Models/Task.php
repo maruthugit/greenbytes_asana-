@@ -5,6 +5,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\TaskComment;
 use App\Models\TaskActivity;
+use App\Models\TaskAttachment;
 
 class Task extends Model
 {
@@ -44,5 +45,10 @@ class Task extends Model
     public function activities()
     {
         return $this->hasMany(TaskActivity::class)->latest();
+    }
+
+    public function attachments()
+    {
+        return $this->hasMany(TaskAttachment::class)->latest();
     }
 }

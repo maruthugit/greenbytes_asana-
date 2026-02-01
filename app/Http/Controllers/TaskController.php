@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\TaskActivity;
+use App\Models\TaskAttachment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -22,6 +23,32 @@ class TaskController extends Controller
             'type' => $type,
             'meta' => empty($meta) ? null : $meta,
         ]);
+    }
+
+    public function logAttachmentAddedActivity(Task $task, array $attachmentIds): void
+    {
+        $ids = array_values(array_filter(array_map('intval', $attachmentIds), fn ($v) => $v > 0));
+        if (empty($ids)) {
+            $this->logActivity($task, 'attachments.added');
+            return;
+        }
+
+        $this->logActivity($task, 'attachments.added', [
+            'attachment_ids' => $ids,
+        ]);
+    }
+
+    public function logAttachmentRemovedActivity(Task $task, array $meta = []): void
+    {
+        $this->logActivity($task, 'attachment.removed', $meta);
+    }
+
+    private function publicStorageUrl(string $path): string
+    {
+        $path = ltrim($path, '/');
+
+        // Prefer the Laravel proxy route so production does not depend on a public/storage symlink.
+        return route('uploads.public', ['path' => $path], false);
     }
 
     private function accessibleTeamIds()
@@ -103,7 +130,7 @@ class TaskController extends Controller
         return 'You are not allowed to assign tasks to this user.';
     }
 
-    private function findAccessibleTaskOrFail(Task $task): Task
+    public function findAccessibleTaskOrFail(Task $task): Task
     {
         $teamIds = $this->accessibleTeamIds();
 
@@ -164,6 +191,7 @@ class TaskController extends Controller
                     'creator',
                     'comments.user',
                     'activities.user',
+                    'attachments',
                 ]);
             }
         }
@@ -209,7 +237,7 @@ class TaskController extends Controller
                     $fileItems->push([
                         'task' => $task,
                         'kind' => 'image',
-                        'url' => Storage::url($task->image_path),
+                        'url' => $this->publicStorageUrl($task->image_path),
                         'name' => 'Task image',
                     ]);
                 }
@@ -246,7 +274,7 @@ class TaskController extends Controller
                         }
 
                         // Skip links that are actually images already captured.
-                        if (str_contains($url, '/storage/task-description/')) {
+                        if (str_contains($url, '/storage/task-description/') || str_contains($url, '/uploads/public/task-description/')) {
                             continue;
                         }
 
@@ -370,14 +398,18 @@ class TaskController extends Controller
             return null;
         }
 
-        // Accept either relative /storage/... or absolute http(s)://.../storage/...
+        // Accept either relative /storage/... or /uploads/public/... or absolute http(s)://... variants.
         if (str_starts_with($url, '/storage/')) {
+            return $url;
+        }
+
+        if (str_starts_with($url, '/uploads/public/')) {
             return $url;
         }
 
         if (preg_match('/^https?:\/\//i', $url) === 1) {
             $path = parse_url($url, PHP_URL_PATH);
-            if (is_string($path) && str_starts_with($path, '/storage/')) {
+            if (is_string($path) && (str_starts_with($path, '/storage/') || str_starts_with($path, '/uploads/public/'))) {
                 return $path;
             }
         }
@@ -393,7 +425,11 @@ class TaskController extends Controller
         }
 
         if (!str_starts_with($path, '/storage/')) {
-            return null;
+            if (!str_starts_with($path, '/uploads/public/')) {
+                return null;
+            }
+
+            return ltrim(substr($path, strlen('/uploads/public/')), '/');
         }
 
         return ltrim(substr($path, strlen('/storage/')), '/');
@@ -449,6 +485,8 @@ class TaskController extends Controller
             'due_date' => ['nullable', 'date'],
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
             'image' => ['nullable', 'image', 'max:4096'],
+            'attachments' => ['nullable', 'array'],
+            'attachments.*' => ['file', 'max:8192', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx'],
         ]);
 
         if (array_key_exists('description', $data) && $data['description'] !== null) {
@@ -496,6 +534,28 @@ class TaskController extends Controller
             'image_path' => $imagePath,
         ]);
 
+        $uploaded = $request->file('attachments', []);
+        if (is_array($uploaded) && !empty($uploaded)) {
+            $createdIds = [];
+            foreach ($uploaded as $file) {
+                if (!$file || !$file->isValid()) continue;
+
+                $path = $file->store('task-attachments', 'public');
+                $att = TaskAttachment::create([
+                    'task_id' => $task->id,
+                    'path' => $path,
+                    'original_name' => (string) $file->getClientOriginalName(),
+                    'mime_type' => (string) ($file->getMimeType() ?? ''),
+                    'size' => $file->getSize(),
+                    'created_by' => auth()->id(),
+                ]);
+
+                $createdIds[] = (int) $att->id;
+            }
+
+            $this->logAttachmentAddedActivity($task, $createdIds);
+        }
+
         return redirect('/tasks?task=' . $task->id)
             ->with('toast', ['type' => 'success', 'message' => 'Task created.']);
     }
@@ -510,6 +570,7 @@ class TaskController extends Controller
             'creator',
             'comments.user',
             'activities.user',
+            'attachments',
         ]);
 
         return view('tasks.show', [
@@ -535,6 +596,9 @@ class TaskController extends Controller
             'status' => ['required', 'in:Todo,Doing,Done'],
             'due_date' => ['nullable', 'date'],
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
+            'image' => ['nullable', 'image', 'max:4096'],
+            'attachments' => ['nullable', 'array'],
+            'attachments.*' => ['file', 'max:8192', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx'],
         ]);
 
         if (array_key_exists('description', $data) && $data['description'] !== null) {
@@ -574,7 +638,42 @@ class TaskController extends Controller
             'assigned_to' => $data['assigned_to'] ?? null,
         ]);
 
+        if ($request->hasFile('image')) {
+            $beforePath = $task->image_path;
+            $task->image_path = $request->file('image')->store('task-images', 'public');
+
+            if (!empty($beforePath)) {
+                try {
+                    Storage::disk('public')->delete($beforePath);
+                } catch (\Throwable $e) {
+                    // Ignore deletion errors
+                }
+            }
+        }
+
         $task->save();
+
+        $uploaded = $request->file('attachments', []);
+        if (is_array($uploaded) && !empty($uploaded)) {
+            $createdIds = [];
+            foreach ($uploaded as $file) {
+                if (!$file || !$file->isValid()) continue;
+
+                $path = $file->store('task-attachments', 'public');
+                $att = TaskAttachment::create([
+                    'task_id' => $task->id,
+                    'path' => $path,
+                    'original_name' => (string) $file->getClientOriginalName(),
+                    'mime_type' => (string) ($file->getMimeType() ?? ''),
+                    'size' => $file->getSize(),
+                    'created_by' => auth()->id(),
+                ]);
+
+                $createdIds[] = (int) $att->id;
+            }
+
+            $this->logAttachmentAddedActivity($task, $createdIds);
+        }
 
         $after = [
             'status' => (string) $task->status,
@@ -662,6 +761,18 @@ class TaskController extends Controller
             $pathsToDelete->push((string) $task->image_path);
         }
 
+        try {
+            $task->loadMissing('attachments');
+            foreach (($task->attachments ?? collect()) as $att) {
+                $p = (string) ($att->path ?? '');
+                if ($p !== '') {
+                    $pathsToDelete->push($p);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore attachment load errors.
+        }
+
         $html = (string) ($task->description ?? '');
         if ($html !== '') {
             try {
@@ -738,7 +849,7 @@ class TaskController extends Controller
             return back()->withErrors(['url' => 'Attachment is not deletable.']);
         }
 
-        $taskImageUrl = $task->image_path ? Storage::url($task->image_path) : null;
+        $taskImageUrl = $task->image_path ? $this->publicStorageUrl($task->image_path) : null;
 
         $changed = false;
 

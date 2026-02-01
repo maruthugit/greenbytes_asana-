@@ -45,7 +45,7 @@
                                 @if($task->image_path)
                                     <div class="mt-2">
                                         <img
-                                            src="{{ \Illuminate\Support\Facades\Storage::url($task->image_path) }}"
+                                                src="{{ route('uploads.public', ['path' => $task->image_path], false) }}"
                                             alt="Task image"
                                             class="h-20 w-full rounded-lg border border-slate-200 object-cover"
                                             loading="lazy"
