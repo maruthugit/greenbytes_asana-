@@ -79,7 +79,7 @@
 					@canany(['tasks.manage', 'tasks.update'])
 						<form method="POST" action="{{ route('tasks.attachments.store', $task) }}" enctype="multipart/form-data" class="h-full">
 							@csrf
-							<input id="task-attachments-upload-{{ $task->id }}" type="file" name="attachments[]" multiple accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" onchange="this.form.submit()" />
+							<input id="task-attachments-upload-{{ $task->id }}" type="file" name="attachments[]" multiple accept="image/*,.pdf,.doc,.docx,.ai,.psd" class="hidden" onchange="this.form.submit()" />
 							<label for="task-attachments-upload-{{ $task->id }}" class="flex h-full cursor-pointer items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-slate-500 hover:border-slate-400 hover:bg-slate-100">
 								<span class="text-2xl font-semibold">+</span>
 							</label>
@@ -94,7 +94,7 @@
 					<div class="mt-2">
 						<form method="POST" action="{{ route('tasks.attachments.store', $task) }}" enctype="multipart/form-data">
 							@csrf
-							<input id="task-attachments-upload-empty-{{ $task->id }}" type="file" name="attachments[]" multiple accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" onchange="this.form.submit()" />
+							<input id="task-attachments-upload-empty-{{ $task->id }}" type="file" name="attachments[]" multiple accept="image/*,.pdf,.doc,.docx,.ai,.psd" class="hidden" onchange="this.form.submit()" />
 							<label for="task-attachments-upload-empty-{{ $task->id }}" class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
 								<span class="text-lg">+</span>
 								Add attachments

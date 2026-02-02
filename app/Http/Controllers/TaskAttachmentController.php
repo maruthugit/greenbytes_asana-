@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use App\Models\TaskAttachment;
+use App\Rules\AllowedTaskAttachment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -15,7 +16,7 @@ class TaskAttachmentController extends Controller
 
         $data = $request->validate([
             'attachments' => ['required', 'array'],
-            'attachments.*' => ['file', 'max:8192', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx'],
+            'attachments.*' => ['file', 'max:8192', new AllowedTaskAttachment()],
         ]);
 
         $uploaded = $request->file('attachments', []);

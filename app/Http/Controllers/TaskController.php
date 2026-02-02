@@ -7,6 +7,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Models\TaskActivity;
 use App\Models\TaskAttachment;
+use App\Rules\AllowedTaskAttachment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -486,7 +487,7 @@ class TaskController extends Controller
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
             'image' => ['nullable', 'image', 'max:4096'],
             'attachments' => ['nullable', 'array'],
-            'attachments.*' => ['file', 'max:8192', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx'],
+            'attachments.*' => ['file', 'max:8192', new AllowedTaskAttachment()],
         ]);
 
         if (array_key_exists('description', $data) && $data['description'] !== null) {
@@ -598,7 +599,7 @@ class TaskController extends Controller
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
             'image' => ['nullable', 'image', 'max:4096'],
             'attachments' => ['nullable', 'array'],
-            'attachments.*' => ['file', 'max:8192', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx'],
+            'attachments.*' => ['file', 'max:8192', new AllowedTaskAttachment()],
         ]);
 
         if (array_key_exists('description', $data) && $data['description'] !== null) {

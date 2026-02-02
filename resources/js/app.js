@@ -255,7 +255,7 @@ function initAttachmentPickers() {
 			preview.innerHTML = '';
 			const files = Array.from(input.files || []);
 			if (!files.length) {
-				help.textContent = 'You can select multiple files (images, PDF, DOC/DOCX).';
+				help.textContent = 'You can select multiple files (images, PDF, DOC/DOCX, AI, PSD).';
 				preview.classList.add('hidden');
 				clearBtn.classList.add('hidden');
 				return;
