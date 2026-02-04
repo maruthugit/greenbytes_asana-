@@ -111,8 +111,10 @@ function initRichTextEditors() {
 		}
 
 		function tryAutoLink(delta, opts = {}) {
-			const sel = quill.getSelection(true);
-			if (!sel) return;
+			const sel = quill.getSelection();
+			// During some operations (notably paste), Quill may fire `text-change` before
+			// the selection is updated. Fall back to end-of-doc so linkification still works.
+			const cursor = sel ? sel.index + (sel.length || 0) : Math.max(0, quill.getLength() - 1);
 
 			let insertedText = '';
 			try {
@@ -130,40 +132,36 @@ function initRichTextEditors() {
 			// If this change didn't insert text and we're not forcing, skip.
 			if (!opts.force && insertedText.length === 0) return;
 
-			// Cursor is after the inserted content.
-			const cursor = sel.index;
-			const lookbehind = 240;
-			const start = Math.max(0, cursor - lookbehind);
-			let text = quill.getText(start, cursor - start);
+			const lookbehind = 800;
+			const windowStart = Math.max(0, cursor - lookbehind);
+			let text = quill.getText(windowStart, cursor - windowStart);
 			if (!text) return;
 
-			// If we just typed a space/newline, ignore trailing whitespace when extracting the token.
-			const trimmedRight = text.replace(/[\s\n\t]+$/g, '');
-			if (trimmedRight === '') return;
-			const trimmedLen = trimmedRight.length;
-			const endIndex = start + trimmedLen;
+			// Ignore trailing whitespace for match scanning.
+			text = text.replace(/[\s\n\t]+$/g, '');
+			if (text === '') return;
 
-			// Find last token boundary.
-			const lastSpace = Math.max(
-				trimmedRight.lastIndexOf(' '),
-				trimmedRight.lastIndexOf('\n'),
-				trimmedRight.lastIndexOf('\t')
-			);
-			let token = trimmedRight.slice(lastSpace + 1);
-			const tokenStart = endIndex - token.length;
-			token = stripTrailingPunctuation(token);
-			if (!token) return;
+			const urlRe = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi;
+			let match;
+			while ((match = urlRe.exec(text))) {
+				const raw = match[0];
+				const cleaned = stripTrailingPunctuation(raw);
+				if (!cleaned) continue;
+				if (!looksLikeRealUrlToken(cleaned)) continue;
 
-			if (!looksLikeRealUrlToken(token)) return;
+				const href = normalizeHref(cleaned);
+				if (!href) continue;
 
-			const href = normalizeHref(token);
-			if (!href) return;
+				const startIndex = windowStart + match.index;
+				const length = cleaned.length;
 
-			// Avoid re-linking if already linked.
-			const fmt = quill.getFormat(tokenStart, token.length);
-			if (fmt && fmt.link) return;
+				// Avoid re-linking if already linked.
+				const fmt = quill.getFormat(startIndex, length);
+				if (fmt && fmt.link) continue;
 
-			quill.formatText(tokenStart, token.length, 'link', href, 'user');
+				// Use source 'api' so we don't recursively trigger our own handler.
+				quill.formatText(startIndex, length, 'link', href, 'api');
+			}
 		}
 
 		if (initialHtml) {
@@ -177,7 +175,25 @@ function initRichTextEditors() {
 
 		quill.on('text-change', (delta, oldDelta, source) => {
 			if (source !== 'user') return;
-			tryAutoLink(delta, { force: true });
+			// Defer to ensure selection/index is up-to-date for paste/IME.
+			setTimeout(() => {
+				try { tryAutoLink(delta, { force: true }); } catch { /* ignore */ }
+			}, 0);
+		});
+
+		// Allow opening links while editing (Quill is contenteditable, so normal click won't navigate).
+		quill.root.addEventListener('click', (e) => {
+			try {
+				if (!(e.ctrlKey || e.metaKey)) return;
+				const a = e.target && e.target.closest ? e.target.closest('a') : null;
+				const href = a?.getAttribute?.('href');
+				if (!href) return;
+				e.preventDefault();
+				e.stopPropagation();
+				window.open(href, '_blank', 'noopener');
+			} catch {
+				// ignore
+			}
 		});
 
 		const form = wrapper.closest('form');

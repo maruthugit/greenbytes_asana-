@@ -30,6 +30,11 @@
     font-size: 0.875rem;
 }
 
+.richtext .ql-editor a {
+    color: rgb(79 70 229);
+    text-decoration: underline;
+}
+
 .richtext-content ul {
     list-style: disc;
     padding-left: 1.25rem;
