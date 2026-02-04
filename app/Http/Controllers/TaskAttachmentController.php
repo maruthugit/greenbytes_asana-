@@ -17,6 +17,8 @@ class TaskAttachmentController extends Controller
         $data = $request->validate([
             'attachments' => ['required', 'array'],
             'attachments.*' => ['file', 'max:8192', new AllowedTaskAttachment()],
+        ], [
+            'attachments.*.uploaded' => 'Attachment failed to upload. This is usually caused by server upload limits (upload_max_filesize/post_max_size) or a proxy body-size limit.',
         ]);
 
         $uploaded = $request->file('attachments', []);

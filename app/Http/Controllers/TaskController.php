@@ -488,6 +488,8 @@ class TaskController extends Controller
             'image' => ['nullable', 'image', 'max:4096'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['file', 'max:8192', new AllowedTaskAttachment()],
+        ], [
+            'attachments.*.uploaded' => 'Attachment failed to upload. This is usually caused by server upload limits (upload_max_filesize/post_max_size) or a proxy body-size limit.',
         ]);
 
         if (array_key_exists('description', $data) && $data['description'] !== null) {
@@ -600,6 +602,8 @@ class TaskController extends Controller
             'image' => ['nullable', 'image', 'max:4096'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['file', 'max:8192', new AllowedTaskAttachment()],
+        ], [
+            'attachments.*.uploaded' => 'Attachment failed to upload. This is usually caused by server upload limits (upload_max_filesize/post_max_size) or a proxy body-size limit.',
         ]);
 
         if (array_key_exists('description', $data) && $data['description'] !== null) {
