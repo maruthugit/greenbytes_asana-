@@ -13,7 +13,12 @@ class TaskComment extends Model
         'task_id',
         'user_id',
         'body',
+		'meta',
     ];
+
+	protected $casts = [
+		'meta' => 'array',
+	];
 
     public function task()
     {

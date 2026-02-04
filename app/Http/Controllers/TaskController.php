@@ -16,6 +16,30 @@ use Mews\Purifier\Facades\Purifier;
 
 class TaskController extends Controller
 {
+    private function tasksIndexUrlWithCurrentQuery(?int $taskId = null): string
+    {
+        $base = url('/tasks');
+        $previous = (string) url()->previous();
+
+        $path = parse_url($previous, PHP_URL_PATH);
+        $queryString = parse_url($previous, PHP_URL_QUERY);
+
+        $query = [];
+        if (is_string($path) && rtrim($path, '/') === '/tasks' && is_string($queryString) && $queryString !== '') {
+            parse_str($queryString, $query);
+        }
+
+        if ($taskId !== null) {
+            $query['task'] = (int) $taskId;
+        }
+
+        if (empty($query)) {
+            return $taskId !== null ? ($base . '?task=' . (int) $taskId) : $base;
+        }
+
+        return $base . '?' . http_build_query($query);
+    }
+
     private function logActivity(Task $task, string $type, array $meta = []): void
     {
         TaskActivity::create([
@@ -487,7 +511,7 @@ class TaskController extends Controller
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
             'image' => ['nullable', 'image', 'max:4096'],
             'attachments' => ['nullable', 'array'],
-            'attachments.*' => ['file', 'max:8192', new AllowedTaskAttachment()],
+            'attachments.*' => ['file', 'max:25600', new AllowedTaskAttachment()],
         ], [
             'attachments.*.uploaded' => 'Attachment failed to upload. This is usually caused by server upload limits (upload_max_filesize/post_max_size) or a proxy body-size limit.',
         ]);
@@ -559,7 +583,7 @@ class TaskController extends Controller
             $this->logAttachmentAddedActivity($task, $createdIds);
         }
 
-        return redirect('/tasks?task=' . $task->id)
+        return redirect($this->tasksIndexUrlWithCurrentQuery((int) $task->id))
             ->with('toast', ['type' => 'success', 'message' => 'Task created.']);
     }
 
@@ -601,7 +625,7 @@ class TaskController extends Controller
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
             'image' => ['nullable', 'image', 'max:4096'],
             'attachments' => ['nullable', 'array'],
-            'attachments.*' => ['file', 'max:8192', new AllowedTaskAttachment()],
+            'attachments.*' => ['file', 'max:25600', new AllowedTaskAttachment()],
         ], [
             'attachments.*.uploaded' => 'Attachment failed to upload. This is usually caused by server upload limits (upload_max_filesize/post_max_size) or a proxy body-size limit.',
         ]);
@@ -723,7 +747,7 @@ class TaskController extends Controller
             $this->logActivity($task, 'description.updated');
         }
 
-        return redirect('/tasks?task=' . $task->id)
+        return redirect($this->tasksIndexUrlWithCurrentQuery((int) $task->id))
             ->with('toast', ['type' => 'success', 'message' => 'Task updated.']);
     }
 

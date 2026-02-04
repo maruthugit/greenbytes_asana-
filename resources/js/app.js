@@ -271,7 +271,7 @@ function initAttachmentPickers() {
 			preview.innerHTML = '';
 			const files = Array.from(input.files || []);
 			if (!files.length) {
-				help.textContent = 'You can select multiple files (images, PDF, DOC/DOCX, AI, PSD).';
+				help.textContent = 'You can select multiple files.';
 				preview.classList.add('hidden');
 				clearBtn.classList.add('hidden');
 				return;
@@ -345,8 +345,48 @@ function initAttachmentPickers() {
 			}
 		}
 
-		button.addEventListener('click', () => input.click());
-		input.addEventListener('change', render);
+		let baseFilesForAppend = null;
+
+		function mergeFiles(existing, incoming) {
+			const keyOf = (f) => `${f.name}::${f.size}::${f.lastModified}`;
+			const seen = new Set();
+			const out = [];
+			for (const f of [...existing, ...incoming]) {
+				const k = keyOf(f);
+				if (seen.has(k)) continue;
+				seen.add(k);
+				out.push(f);
+			}
+			return out;
+		}
+
+		button.addEventListener('click', () => {
+			baseFilesForAppend = Array.from(input.files || []);
+			input.click();
+		});
+
+		input.addEventListener('change', () => {
+			const existing = Array.isArray(baseFilesForAppend) ? baseFilesForAppend : [];
+			baseFilesForAppend = null;
+
+			// Default browser behavior replaces the previous selection.
+			// Rebuild the FileList to append newly selected files.
+			try {
+				if (existing.length) {
+					const selected = Array.from(input.files || []);
+					const merged = mergeFiles(existing, selected);
+					if (typeof DataTransfer !== 'undefined') {
+						const dt = new DataTransfer();
+						for (const f of merged) dt.items.add(f);
+						input.files = dt.files;
+					}
+				}
+			} catch {
+				// If the browser doesn't allow setting FileList, fall back to default behavior.
+			}
+
+			render();
+		});
 		clearBtn.addEventListener('click', () => {
 			input.value = '';
 			render();
@@ -357,10 +397,326 @@ function initAttachmentPickers() {
 	}
 }
 
+function initAttachmentCardClicks() {
+	const roots = document.querySelectorAll('[data-activity-tabs-root]');
+	for (const root of roots) {
+		if (root.dataset.attachmentCardClicksInited === '1') continue;
+		root.dataset.attachmentCardClicksInited = '1';
+
+		root.addEventListener('click', (e) => {
+			try {
+				if (e.defaultPrevented) return;
+				if (e.button !== 0) return;
+
+				const card = e.target?.closest?.('[data-attachment-card]');
+				if (!card || !root.contains(card)) return;
+
+				// Ignore clicks on interactive elements inside the card.
+				const interactive = e.target?.closest?.('a,button,summary,details,form,input,textarea,select');
+				if (interactive && card.contains(interactive)) return;
+
+				const url = card.getAttribute('data-open-url');
+				if (!url) return;
+
+				window.open(url, '_blank', 'noopener');
+			} catch {
+				// ignore
+			}
+		});
+
+		root.addEventListener('keydown', (e) => {
+			try {
+				const card = e.target?.closest?.('[data-attachment-card]');
+				if (!card || !root.contains(card)) return;
+
+				if (e.key !== 'Enter' && e.key !== ' ') return;
+				e.preventDefault();
+
+				const url = card.getAttribute('data-open-url');
+				if (!url) return;
+				window.open(url, '_blank', 'noopener');
+			} catch {
+				// ignore
+			}
+		});
+	}
+}
+
+function initCommentComposers() {
+	const wrappers = document.querySelectorAll('[data-comment-composer]');
+	for (const wrapper of wrappers) {
+		if (wrapper.dataset.commentComposerInited === '1') continue;
+		wrapper.dataset.commentComposerInited = '1';
+
+		const textarea = wrapper.querySelector('textarea[name="body"]');
+		const editor = wrapper.querySelector('[data-comment-editor]');
+		if (!textarea || !editor) continue;
+
+		const quill = new Quill(editor, {
+			theme: 'snow',
+			placeholder: 'Type / for menu',
+			modules: {
+				toolbar: false,
+			},
+		});
+
+		textarea.value = textarea.value || '';
+		if (textarea.value) {
+			try {
+				quill.clipboard.dangerouslyPasteHTML(textarea.value);
+			} catch {
+				// ignore
+			}
+		}
+
+		function sync() {
+			textarea.value = quill.root.innerHTML;
+		}
+		sync();
+		quill.on('text-change', () => sync());
+
+		const form = wrapper.closest('form');
+		if (form) {
+			form.addEventListener('submit', (e) => {
+				sync();
+				const plain = (quill.getText() || '').trim();
+				const attachmentsInput = wrapper.querySelector('[data-comment-attachments-input]');
+				const hasFiles = Boolean(attachmentsInput?.files?.length);
+				if (!hasFiles && plain.length === 0) {
+					e.preventDefault();
+					alert('Please type a comment or attach a file.');
+				}
+			});
+		}
+
+		const formatBar = wrapper.querySelector('[data-comment-formatbar]');
+		const emojiPopover = wrapper.querySelector('[data-comment-emoji-popover]');
+		const notify = wrapper.querySelector('[data-comment-notify]');
+		const attachmentsInput = wrapper.querySelector('[data-comment-attachments-input]');
+		const attachmentsPreview = wrapper.querySelector('[data-comment-attachments-preview]');
+
+		function toggle(el) {
+			if (!el) return;
+			el.classList.toggle('hidden');
+		}
+		function hide(el) {
+			if (!el) return;
+			el.classList.add('hidden');
+		}
+		function show(el) {
+			if (!el) return;
+			el.classList.remove('hidden');
+		}
+
+		function mergeFiles(existing, incoming) {
+			const keyOf = (f) => `${f.name}::${f.size}::${f.lastModified}`;
+			const seen = new Set();
+			const out = [];
+			for (const f of [...existing, ...incoming]) {
+				const k = keyOf(f);
+				if (seen.has(k)) continue;
+				seen.add(k);
+				out.push(f);
+			}
+			return out;
+		}
+
+		function setFiles(files) {
+			if (!attachmentsInput) return;
+			try {
+				if (typeof DataTransfer === 'undefined') return;
+				const dt = new DataTransfer();
+				for (const f of files) dt.items.add(f);
+				attachmentsInput.files = dt.files;
+			} catch {
+				// ignore
+			}
+		}
+
+		function renderAttachments() {
+			if (!attachmentsInput || !attachmentsPreview) return;
+			attachmentsPreview.innerHTML = '';
+			const files = Array.from(attachmentsInput.files || []);
+			if (!files.length) {
+				hide(attachmentsPreview);
+				return;
+			}
+			show(attachmentsPreview);
+			attachmentsPreview.classList.add('space-y-2');
+
+			files.forEach((file) => {
+				const row = document.createElement('div');
+				row.className = 'flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2';
+				const left = document.createElement('div');
+				left.className = 'min-w-0';
+				const name = document.createElement('div');
+				name.className = 'truncate text-sm font-semibold text-slate-900';
+				name.textContent = file.name || 'Attachment';
+				const sub = document.createElement('div');
+				sub.className = 'mt-0.5 text-xs text-slate-500';
+				const kb = Math.max(1, Math.round((file.size || 0) / 1024));
+				sub.textContent = `${kb} KB`;
+				left.appendChild(name);
+				left.appendChild(sub);
+
+				const remove = document.createElement('button');
+				remove.type = 'button';
+				remove.className = 'shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50';
+				remove.textContent = 'Remove';
+				remove.addEventListener('click', () => {
+					const next = files.filter((f) => !(f.name === file.name && f.size === file.size && f.lastModified === file.lastModified));
+					setFiles(next);
+					renderAttachments();
+				});
+
+				row.appendChild(left);
+				row.appendChild(remove);
+				attachmentsPreview.appendChild(row);
+			});
+		}
+
+		if (attachmentsInput) {
+			let baseFilesForAppend = null;
+			attachmentsInput.addEventListener('click', () => {
+				baseFilesForAppend = Array.from(attachmentsInput.files || []);
+			});
+			attachmentsInput.addEventListener('change', () => {
+				const existing = Array.isArray(baseFilesForAppend) ? baseFilesForAppend : [];
+				baseFilesForAppend = null;
+
+				try {
+					if (existing.length) {
+						const selected = Array.from(attachmentsInput.files || []);
+						const merged = mergeFiles(existing, selected);
+						setFiles(merged);
+					}
+				} catch {
+					// ignore
+				}
+				renderAttachments();
+			});
+
+			renderAttachments();
+		}
+
+		wrapper.querySelectorAll('[data-comment-action]').forEach((btn) => {
+			btn.addEventListener('click', () => {
+				const action = btn.getAttribute('data-comment-action');
+				if (action === 'format') {
+					toggle(formatBar);
+					hide(emojiPopover);
+					quill.focus();
+					return;
+				}
+				if (action === 'emoji') {
+					toggle(emojiPopover);
+					hide(formatBar);
+					quill.focus();
+					return;
+				}
+				if (action === 'mention') {
+					const who = window.prompt('Mention who? (type a name)');
+					const text = who ? `@${who} ` : '@';
+					const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
+					quill.insertText(range.index, text, 'user');
+					quill.setSelection(range.index + text.length, 0, 'silent');
+					quill.focus();
+					return;
+				}
+				if (action === 'follow') {
+					btn.classList.toggle('text-indigo-600');
+					btn.classList.toggle('bg-indigo-50');
+					btn.classList.toggle('ring-1');
+					btn.classList.toggle('ring-indigo-200');
+					if (notify) {
+						if (!notify.dataset.originalText) notify.dataset.originalText = notify.textContent;
+						notify.classList.remove('hidden');
+						notify.textContent = btn.classList.contains('text-indigo-600')
+							? 'You are following this task'
+							: notify.dataset.originalText;
+					}
+					return;
+				}
+				if (action === 'attach') {
+					attachmentsInput?.click();
+					return;
+				}
+				if (action === 'ai') {
+					alert('AI assist is not enabled yet.');
+					return;
+				}
+			});
+		});
+
+		wrapper.querySelectorAll('[data-comment-emoji]').forEach((btn) => {
+			btn.addEventListener('click', () => {
+				const em = btn.getAttribute('data-comment-emoji') || btn.textContent || '';
+				if (!em) return;
+				const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
+				quill.insertText(range.index, em, 'user');
+				quill.setSelection(range.index + em.length, 0, 'silent');
+				hide(emojiPopover);
+				quill.focus();
+			});
+		});
+
+		wrapper.querySelectorAll('[data-comment-format]').forEach((btn) => {
+			btn.addEventListener('click', () => {
+				const fmt = btn.getAttribute('data-comment-format');
+				const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
+				if (fmt === 'bold' || fmt === 'italic' || fmt === 'underline') {
+					const current = quill.getFormat(range);
+					quill.format(fmt, !current[fmt], 'user');
+					quill.focus();
+					return;
+				}
+				if (fmt === 'bullet') {
+					quill.format('list', 'bullet', 'user');
+					quill.focus();
+					return;
+				}
+				if (fmt === 'ordered') {
+					quill.format('list', 'ordered', 'user');
+					quill.focus();
+					return;
+				}
+				if (fmt === 'link') {
+					const hrefRaw = window.prompt('Link URL (https://...)');
+					const href = String(hrefRaw || '').trim();
+					if (!href) return;
+					if (range.length > 0) {
+						quill.format('link', href, 'user');
+					} else {
+						const text = window.prompt('Link text') || href;
+						quill.insertText(range.index, text, { link: href }, 'user');
+						quill.setSelection(range.index + text.length, 0, 'silent');
+					}
+					quill.focus();
+					return;
+				}
+			});
+		});
+
+		// Close popovers when clicking outside
+		document.addEventListener(
+			'click',
+			(e) => {
+				if (!wrapper.contains(e.target)) {
+					hide(formatBar);
+					hide(emojiPopover);
+				}
+			},
+			{ capture: true }
+		);
+	}
+}
+
 function hydrateDynamicUi() {
 	initRichTextEditors();
 	initActivityTabs();
 	initAttachmentPickers();
+	initAttachmentCardClicks();
+	initCommentComposers();
 }
 
 async function handleUploadAndInsert({ quill, uploadUrl, csrfToken, accept }) {

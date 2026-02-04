@@ -55,7 +55,7 @@ class RichTextUploadController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'file' => ['required', 'file', 'max:8192'],
+            'file' => ['required', 'file', 'max:25600'],
         ]);
 
         /** @var \Illuminate\Http\UploadedFile $file */

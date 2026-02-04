@@ -66,44 +66,7 @@
 			</div>
 		@endif
 
-		@php
-			$hasAttachments = ($task->attachments ?? collect())->count() > 0;
-		@endphp
-		@if($hasAttachments)
-			<div class="mt-4">
-				<div class="text-xs font-medium text-slate-500">Attachments</div>
-				<div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-					@foreach($task->attachments as $att)
-						@include('tasks._attachment_card', ['task' => $task, 'att' => $att, 'showDelete' => auth()->user()->can('tasks.manage') || auth()->user()->can('tasks.update') || auth()->user()->can('tasks.attachments.delete')])
-					@endforeach
-					@canany(['tasks.manage', 'tasks.update'])
-						<form method="POST" action="{{ route('tasks.attachments.store', $task) }}" enctype="multipart/form-data" class="h-full">
-							@csrf
-							<input id="task-attachments-upload-{{ $task->id }}" type="file" name="attachments[]" multiple accept="image/*,.pdf,.doc,.docx,.ai,.psd" class="hidden" onchange="this.form.submit()" />
-							<label for="task-attachments-upload-{{ $task->id }}" class="flex h-full cursor-pointer items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-slate-500 hover:border-slate-400 hover:bg-slate-100">
-								<span class="text-2xl font-semibold">+</span>
-							</label>
-						</form>
-					@endcanany
-				</div>
-			</div>
-		@else
-			@canany(['tasks.manage', 'tasks.update'])
-				<div class="mt-4">
-					<div class="text-xs font-medium text-slate-500">Attachments</div>
-					<div class="mt-2">
-						<form method="POST" action="{{ route('tasks.attachments.store', $task) }}" enctype="multipart/form-data">
-							@csrf
-							<input id="task-attachments-upload-empty-{{ $task->id }}" type="file" name="attachments[]" multiple accept="image/*,.pdf,.doc,.docx,.ai,.psd" class="hidden" onchange="this.form.submit()" />
-							<label for="task-attachments-upload-empty-{{ $task->id }}" class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-								<span class="text-lg">+</span>
-								Add attachments
-							</label>
-						</form>
-					</div>
-				</div>
-			@endcanany
-		@endif
+		{{-- Attachments moved to top strip above Comments (Asana-style) --}}
 	</div>
 
 	<div class="lg:col-span-2 rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -112,6 +75,28 @@
 		</div>
 
 		<div class="px-5 py-4" data-activity-tabs-root>
+			@php
+				$canManageAttachments = auth()->user()->can('tasks.manage') || auth()->user()->can('tasks.update') || auth()->user()->can('tasks.attachments.delete');
+				$canAddAttachments = auth()->user()->can('tasks.manage') || auth()->user()->can('tasks.update');
+				$attachments = ($task->attachments ?? collect());
+			@endphp
+			<div class="mb-4">
+				<div class="flex items-stretch gap-3 overflow-x-auto pb-1">
+					@foreach($attachments as $att)
+						@include('tasks._attachment_strip_item', ['task' => $task, 'att' => $att])
+					@endforeach
+					@if($canAddAttachments)
+						<form method="POST" action="{{ route('tasks.attachments.store', $task) }}" enctype="multipart/form-data" class="shrink-0">
+							@csrf
+							<input id="task-attachments-strip-upload-{{ $task->id }}" type="file" name="attachments[]" multiple class="hidden" onchange="this.form.submit()" />
+							<label for="task-attachments-strip-upload-{{ $task->id }}" class="inline-flex h-full w-16 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-slate-500 hover:bg-slate-50 cursor-pointer">
+								<span class="text-2xl leading-none">+</span>
+								<span class="sr-only">Add attachments</span>
+							</label>
+						</form>
+					@endif
+				</div>
+			</div>
 			@php
 				$canViewComments = auth()->user()->can('comments.view') || auth()->user()->can('comments.manage');
 				$initials = function (?string $name): string {
@@ -145,6 +130,7 @@
 							'at' => $c->created_at,
 							'user' => $c->user,
 							'body' => $c->body,
+							'meta' => $c->meta,
 						]);
 					}
 				}
@@ -168,6 +154,7 @@
 							'at' => $c->created_at,
 							'user' => $c->user,
 							'body' => $c->body,
+							'meta' => $c->meta,
 						]);
 					}
 				}
@@ -198,21 +185,43 @@
 								<div class="min-w-0 flex-1">
 									<div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
 										<div class="text-sm font-semibold text-slate-900">{{ $author?->name ?? 'Unknown' }}</div>
-										<div class="text-xs text-slate-500">{{ $at?->diffForHumans() }}</div>
+										@if($t === 'comment')
+											<div class="text-xs text-slate-500">{{ $at?->format('M j, Y') }}</div>
+										@else
+											<div class="text-sm text-slate-500">attached</div>
+											<div class="text-xs text-slate-500">· {{ $at?->format('M j, Y') }}</div>
+										@endif
 									</div>
 									@if($t === 'comment')
-										<div class="mt-1 whitespace-pre-wrap text-sm text-slate-700">{{ $item['body'] ?? '' }}</div>
+										@php
+											$body = (string) ($item['body'] ?? '');
+											$isHtml = str_contains($body, '<') && str_contains($body, '>');
+											$meta = (array) ($item['meta'] ?? []);
+											$ids = (array) ($meta['attachment_ids'] ?? []);
+											$atts = collect($ids)->map(fn ($id) => $attachmentsById->get((int) $id))->filter();
+										@endphp
+										@if($isHtml)
+											<div class="richtext-content mt-1 text-sm text-slate-700">{!! $body !!}</div>
+										@else
+											<div class="mt-1 whitespace-pre-wrap text-sm text-slate-700">{{ $body }}</div>
+										@endif
+										@if($atts->count())
+											<div class="mt-2 space-y-2">
+												@foreach($atts as $att)
+													@include('tasks._attachment_card', ['task' => $task, 'att' => $att, 'showDelete' => $canManageAttachments, 'showUploaded' => false])
+												@endforeach
+											</div>
+										@endif
 									@else
-										<div class="mt-1 text-sm text-slate-700">attached</div>
 										@php
 											$meta = (array) ($item['meta'] ?? []);
 											$ids = (array) ($meta['attachment_ids'] ?? []);
 											$atts = collect($ids)->map(fn ($id) => $attachmentsById->get((int) $id))->filter();
 										@endphp
 										@if($atts->count())
-											<div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+											<div class="mt-2 space-y-2">
 												@foreach($atts as $att)
-													@include('tasks._attachment_card', ['task' => $task, 'att' => $att, 'showDelete' => false])
+													@include('tasks._attachment_card', ['task' => $task, 'att' => $att, 'showDelete' => $canManageAttachments, 'showUploaded' => false])
 												@endforeach
 											</div>
 										@endif
@@ -228,17 +237,81 @@
 				@endif
 
 				@canany(['comments.manage', 'comments.create'])
-					<form method="POST" action="{{ route('tasks.comments.store', $task) }}" class="mt-5">
+					<form method="POST" action="{{ route('tasks.comments.store', $task) }}" enctype="multipart/form-data" class="mt-5">
 						@csrf
+						@php
+							$notifyName = $task->assignee?->name;
+						@endphp
 						<div class="flex items-start gap-3">
 							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
 								{{ $initials(auth()->user()->name ?? '') }}
 							</div>
 							<div class="min-w-0 flex-1">
-								<textarea name="body" rows="3" placeholder="Add a comment" class="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-100" required></textarea>
-								<div class="mt-2 flex items-center justify-end">
-									<button class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Comment</button>
+								<div class="rounded-xl border border-slate-300 bg-white comment-composer" data-comment-composer data-upload-url="{{ route('uploads.richtext') }}">
+									<textarea name="body" class="hidden" required></textarea>
+									<div class="[&_.ql-toolbar]:hidden [&_.ql-container]:border-0 [&_.ql-editor]:min-h-[110px] [&_.ql-editor]:px-4 [&_.ql-editor]:py-3 [&_.ql-editor]:text-sm" data-comment-editor></div>
+									<div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-3 py-2">
+										<div class="flex items-center gap-1 text-slate-500">
+											<button type="button" class="rounded-md p-2 hover:bg-slate-100" title="Format" data-comment-action="format">
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+													<path d="M5.5 4A1.5 1.5 0 0 1 7 2.5h6A1.5 1.5 0 0 1 14.5 4v1a.75.75 0 0 1-1.5 0V4H7v1a.75.75 0 0 1-1.5 0V4Z" />
+													<path d="M7.25 7a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-1.25V16a.75.75 0 0 1-1.5 0V7.75H8a.75.75 0 0 1-.75-.75Z" />
+												</svg>
+											</button>
+											<button type="button" class="rounded-md p-2 hover:bg-slate-100" title="Emoji" data-comment-action="emoji">
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+													<path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.5-7a.75.75 0 0 1 .75.75 4.25 4.25 0 0 1-8.5 0 .75.75 0 0 1 1.5 0 2.75 2.75 0 0 0 5.5 0 .75.75 0 0 1 .75-.75ZM7.5 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm7 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" clip-rule="evenodd" />
+												</svg>
+											</button>
+											<button type="button" class="rounded-md p-2 hover:bg-slate-100" title="Mention" data-comment-action="mention">
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+													<path d="M10 2.5a7.5 7.5 0 1 0 4.49 13.5.75.75 0 0 0-.9-1.2A6 6 0 1 1 16 10a2.5 2.5 0 0 1-5 0V8.5a3.5 3.5 0 1 0-1.5 2.88V10a.75.75 0 0 0-1.5 0 2 2 0 1 1 4 0v.25A4 4 0 1 0 16 10a6 6 0 0 0-6-6Z" />
+												</svg>
+											</button>
+											<button type="button" class="rounded-md p-2 hover:bg-slate-100" title="Follow" data-comment-action="follow">
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+													<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 0 0 .95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 0 0-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.539 1.118l-2.8-2.034a1 1 0 0 0-1.176 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 0 0-.364-1.118L2.88 8.809c-.783-.57-.38-1.81.588-1.81H6.93a1 1 0 0 0 .95-.69l1.07-3.292Z" />
+												</svg>
+											</button>
+											<button type="button" class="rounded-md p-2 hover:bg-slate-100" title="Attach" data-comment-action="attach">
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+													<path fill-rule="evenodd" d="M15.621 4.379a3 3 0 0 0-4.243 0l-6.2 6.2a4 4 0 1 0 5.657 5.657l6.2-6.2a2 2 0 1 0-2.829-2.828l-5.657 5.657a1 1 0 1 0 1.414 1.414l5.657-5.657a.5.5 0 1 1 .707.707l-6.2 6.2a2.5 2.5 0 0 1-3.536-3.536l6.2-6.2a1.5 1.5 0 1 1 2.121 2.121l-6.2 6.2a.75.75 0 0 0 1.06 1.06l6.2-6.2a3 3 0 0 0 0-4.242Z" clip-rule="evenodd" />
+												</svg>
+											</button>
+											<button type="button" class="rounded-md p-2 hover:bg-slate-100" title="AI" data-comment-action="ai">
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+													<path d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.132 2.727a1 1 0 0 1-.53.53L4.743 7.273c-.772.321-.772 1.415 0 1.736l2.727 1.132a1 1 0 0 1 .53.53l1.132 2.727c.321.772 1.415.772 1.736 0l1.132-2.727a1 1 0 0 1 .53-.53l2.727-1.132c.772-.321.772-1.415 0-1.736l-2.727-1.132a1 1 0 0 1-.53-.53l-1.132-2.727Z" />
+													<path d="M5 16a1 1 0 0 1 1-1h1v-1a1 1 0 1 1 2 0v1h1a1 1 0 1 1 0 2H9v1a1 1 0 1 1-2 0v-1H6a1 1 0 0 1-1-1Z" />
+												</svg>
+											</button>
+										</div>
+										<div class="flex items-center gap-3">
+											<div class="hidden text-xs text-slate-500 sm:block" data-comment-notify>
+												{{ $notifyName ? ($notifyName . ' will be notified') : 'People on this task will be notified' }}
+											</div>
+											<button class="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Comment</button>
+									</div>
 								</div>
+									<input type="file" name="attachments[]" multiple class="hidden" data-comment-attachments-input />
+									<div class="hidden px-3 pb-3" data-comment-attachments-preview></div>
+									<div class="hidden px-3 pb-3" data-comment-formatbar>
+										<div class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+											<button type="button" class="rounded-md px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-comment-format="bold">B</button>
+											<button type="button" class="rounded-md px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-comment-format="italic">I</button>
+											<button type="button" class="rounded-md px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-comment-format="underline">U</button>
+											<button type="button" class="rounded-md px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-comment-format="bullet">• List</button>
+											<button type="button" class="rounded-md px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-comment-format="ordered">1. List</button>
+											<button type="button" class="rounded-md px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-comment-format="link">Link</button>
+										</div>
+									</div>
+									<div class="hidden px-3 pb-3" data-comment-emoji-popover>
+										<div class="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-2">
+											@foreach(['😀','😅','😂','🙂','😉','😍','👍','👏','🙏','🎉','✅','❗','🔥','💡','📎','⭐'] as $em)
+												<button type="button" class="h-9 w-9 rounded-md text-lg hover:bg-slate-100" data-comment-emoji="{{ $em }}">{{ $em }}</button>
+											@endforeach
+										</div>
+									</div>
+							</div>
 							</div>
 						</div>
 					</form>
@@ -317,7 +390,7 @@
 										<span class="font-semibold text-slate-900">{{ $user?->name ?? 'Someone' }}</span>
 										{{ $msg }}
 										@if($at)
-											<span class="text-slate-500">· {{ $at->diffForHumans() }}</span>
+											<span class="text-slate-500">· {{ $at->format('M j, Y') }}</span>
 										@endif
 									</div>
 									@if($ct === 'attachments.added')
@@ -326,9 +399,9 @@
 											$atts = collect($ids)->map(fn ($id) => $attachmentsById->get((int) $id))->filter();
 										@endphp
 										@if($atts->count())
-											<div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+											<div class="mt-2 space-y-2">
 												@foreach($atts as $att)
-													@include('tasks._attachment_card', ['task' => $task, 'att' => $att, 'showDelete' => false])
+													@include('tasks._attachment_card', ['task' => $task, 'att' => $att, 'showDelete' => $canManageAttachments, 'showUploaded' => false])
 												@endforeach
 											</div>
 										@endif
@@ -336,7 +409,7 @@
 								@else
 									<div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
 										<div class="text-sm font-semibold text-slate-900">{{ $user?->name ?? 'Unknown' }}</div>
-										<div class="text-xs text-slate-500">{{ $at?->diffForHumans() }}</div>
+										<div class="text-xs text-slate-500">{{ $at?->format('M j, Y') }}</div>
 									</div>
 									<div class="mt-1 whitespace-pre-wrap text-sm text-slate-700">{{ $evt['body'] ?? '' }}</div>
 								@endif
