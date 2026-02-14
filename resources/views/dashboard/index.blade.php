@@ -52,7 +52,7 @@
 				<div class="px-6 py-4">
 					<div class="flex items-start justify-between gap-3">
 						<div class="min-w-0">
-							<div class="truncate text-sm font-semibold text-slate-900">{{ $task->title }}</div>
+							<a href="{{ route('tasks.show', $task) }}" class="block truncate text-sm font-semibold text-slate-900 hover:underline">{{ $task->title }}</a>
 							<div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
 								@if($task->project)
 									@canany(['projects.view', 'projects.manage'])
@@ -70,7 +70,10 @@
 								@endif
 							</div>
 						</div>
-						<div class="shrink-0 text-xs text-slate-400">#{{ $task->id }}</div>
+						<div class="shrink-0 text-right">
+							<a href="{{ route('tasks.show', $task) }}" class="text-xs font-semibold text-slate-700 hover:underline">Open</a>
+							<div class="mt-1 text-xs text-slate-400">#{{ $task->id }}</div>
+						</div>
 					</div>
 				</div>
 			@empty

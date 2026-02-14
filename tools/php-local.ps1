@@ -3,7 +3,14 @@ param(
   [string[]]$Args
 )
 
-$phpExe = (Get-Command php).Path
+
+# Prefer the real binary path (Scoop shims can otherwise point to a shim folder)
+$phpExe = (& php -r "echo PHP_BINARY;") 2>$null
+$phpExe = ($phpExe | Out-String).Trim()
+
+if ([string]::IsNullOrWhiteSpace($phpExe)) {
+  $phpExe = (Get-Command php).Path
+}
 
 # Scoop php path example: C:\Users\<you>\scoop\apps\php82\current\php.exe
 $phpDir = Split-Path -Parent $phpExe

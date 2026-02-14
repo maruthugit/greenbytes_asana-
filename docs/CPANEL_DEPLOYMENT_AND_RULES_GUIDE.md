@@ -49,6 +49,24 @@ Minimum required:
 - `DB_USERNAME=...`
 - `DB_PASSWORD=...`
 
+#### 1.4.1 Mail settings (required for task assignment emails)
+This app’s default mailer is `log` unless you set SMTP in `.env`.
+
+Add/update these in production `.env`:
+- `MAIL_MAILER=smtp`
+- `MAIL_HOST=...` (your SMTP host, often `mail.your-domain.com`)
+- `MAIL_PORT=587` (TLS) or `465` (SSL)
+- `MAIL_USERNAME=...`
+- `MAIL_PASSWORD=...`
+- `MAIL_FROM_ADDRESS=...`
+- `MAIL_FROM_NAME="GreenBytes Asana"`
+
+If you use port `465` (SSL), also set:
+- `MAIL_SCHEME=smtps`
+
+**If config is cached** (common on production), `.env` mail changes will not apply until you delete:
+- `bootstrap/cache/config.php`
+
 **Screenshot (`.env` in File Manager – redact passwords)**
 
 Screenshot (add later): `docs/images/03-env-file.png`

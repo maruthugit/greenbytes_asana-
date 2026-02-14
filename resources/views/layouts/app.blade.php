@@ -39,6 +39,63 @@
 	<div class="min-h-screen">
 		@auth
 			@php
+				$unreadCommentNotificationsCount = 0;
+				$unreadCommentTaskSummaries = collect();
+				$unreadAssignmentNotifications = collect();
+				$unreadNotificationsCount = 0;
+				try {
+					$commentType = \App\Notifications\TaskCommentAddedNotification::class;
+					$assignedType = \App\Notifications\TaskAssignedNotification::class;
+
+					$unreadAll = auth()->user()
+						?->unreadNotifications()
+						->whereIn('type', [$commentType, $assignedType])
+						->orderByDesc('created_at')
+						->limit(300)
+						->get() ?? collect();
+
+					$unreadNotificationsCount = (int) $unreadAll->count();
+					$unreadComments = $unreadAll->where('type', $commentType)->values();
+					$unreadAssignments = $unreadAll->where('type', $assignedType)->values();
+
+					$unreadCommentNotificationsCount = (int) $unreadComments->count();
+					$unreadAssignmentNotifications = $unreadAssignments->take(10);
+
+					$grouped = $unreadComments
+						->groupBy(function ($n) {
+							try {
+								$data = is_array($n->data) ? $n->data : (array) $n->data;
+								return (int) ($data['task_id'] ?? 0);
+							} catch (\Throwable $e) {
+								return 0;
+							}
+						})
+						->filter(fn ($items, $taskId) => (int) $taskId > 0);
+
+					$unreadCommentTaskSummaries = $grouped
+						->map(function ($items, $taskId) {
+							$latest = $items->first();
+							$data = is_array($latest->data) ? $latest->data : (array) $latest->data;
+							return [
+								'task_id' => (int) $taskId,
+								'task_title' => (string) ($data['task_title'] ?? 'Task'),
+								'commenter' => (string) ($data['commenter'] ?? 'Someone'),
+								'excerpt' => (string) ($data['excerpt'] ?? ''),
+								'count' => (int) $items->count(),
+								'created_at' => $latest->created_at,
+							];
+						})
+						->sortByDesc(fn ($row) => $row['created_at'] ?? null)
+						->values()
+						->take(10);
+				} catch (\Throwable $e) {
+					$unreadCommentNotificationsCount = 0;
+					$unreadCommentTaskSummaries = collect();
+					$unreadAssignmentNotifications = collect();
+					$unreadNotificationsCount = 0;
+				}
+			@endphp
+			@php
 				$nav = [
 					[
 						'label' => 'Home',
@@ -188,6 +245,98 @@
 							</div>
 
 							<div class="flex items-center gap-3">
+								<div class="relative">
+									<button
+										id="gb-notif-btn"
+										type="button"
+										aria-label="Notifications"
+										aria-expanded="false"
+										class="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+									>
+										<svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" xmlns="http://www.w3.org/2000/svg">
+											<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2Z" fill="currentColor" opacity=".85"/>
+											<path d="M18 16v-5a6 6 0 1 0-12 0v5l-2 2h16l-2-2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+											<path d="M9 4a3 3 0 0 1 6 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+										</svg>
+										@if (($unreadNotificationsCount ?? 0) > 0)
+											<span class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-semibold leading-none text-white ring-2 ring-white" style="position:absolute; top:-4px; right:-4px; height:20px; min-width:20px; padding:0 4px; background:#dc2626; color:#fff; border-radius:9999px; border:2px solid #fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; line-height:1;">
+												{{ $unreadNotificationsCount > 99 ? '99+' : $unreadNotificationsCount }}
+											</span>
+										@endif
+									</button>
+
+									<div
+										id="gb-notif-panel"
+										class="hidden absolute right-0 z-50 mt-2 w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+										role="dialog"
+										aria-label="Notifications"
+									>
+										<div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+											<div class="text-sm font-semibold text-slate-900">
+												Notifications
+												@if (($unreadNotificationsCount ?? 0) > 0)
+													<span class="ml-1 text-slate-500">({{ $unreadNotificationsCount }})</span>
+												@endif
+											</div>
+											<div class="text-xs font-medium text-slate-500">All</div>
+										</div>
+
+										<div class="max-h-[420px] overflow-auto">
+											@if (($unreadNotificationsCount ?? 0) === 0)
+												<div class="px-4 py-6 text-sm text-slate-600">No new notifications.</div>
+											@else
+												@foreach ($unreadAssignmentNotifications as $n)
+													@php
+														$data = is_array($n->data) ? $n->data : (array) $n->data;
+														$taskId = (int) ($data['task_id'] ?? 0);
+														$title = (string) ($data['task_title'] ?? 'Task');
+														$assigner = (string) ($data['assigner'] ?? 'Someone');
+												@endphp
+												<a href="{{ $taskId ? url('/tasks/' . $taskId) : '#' }}" class="block border-b border-slate-100 px-4 py-3 hover:bg-slate-50">
+													<div class="flex items-start gap-3">
+														<div class="mt-1 h-2.5 w-2.5 rounded-full bg-slate-900/30"></div>
+														<div class="min-w-0 flex-1">
+															<div class="truncate text-sm font-semibold text-slate-900">Task assigned: {{ $title }}</div>
+															<div class="mt-0.5 truncate text-sm text-slate-700">Assigned by {{ $assigner }}</div>
+															<div class="mt-1 text-xs text-slate-500">{{ optional($n->created_at)->diffForHumans() }}</div>
+														</div>
+													</div>
+												</a>
+												@endforeach
+
+												@foreach ($unreadCommentTaskSummaries as $row)
+													@php
+														$taskId = (int) ($row['task_id'] ?? 0);
+														$title = (string) ($row['task_title'] ?? 'Task');
+														$commenter = (string) ($row['commenter'] ?? 'Someone');
+														$excerpt = (string) ($row['excerpt'] ?? '');
+														$count = (int) ($row['count'] ?? 0);
+														$createdAt = $row['created_at'] ?? null;
+													@endphp
+													<a href="{{ $taskId ? url('/tasks/' . $taskId) : '#' }}" class="block border-b border-slate-100 px-4 py-3 hover:bg-slate-50">
+													<div class="flex items-start gap-3">
+														<div class="mt-1 h-2.5 w-2.5 rounded-full bg-slate-900/30"></div>
+														<div class="min-w-0 flex-1">
+															<div class="flex items-start justify-between gap-3">
+																<div class="min-w-0">
+																	<div class="truncate text-sm font-semibold text-slate-900">{{ $title }}</div>
+																	<div class="mt-0.5 truncate text-sm text-slate-700">{{ $commenter }}: {{ $excerpt }}</div>
+																</div>
+																@if ($count > 0)
+																		<span class="shrink-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-semibold leading-none text-white ring-2 ring-white" style="height:20px; min-width:20px; padding:0 4px; background:#dc2626; color:#fff; border-radius:9999px; border:2px solid #fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; line-height:1;">
+																		{{ $count > 99 ? '99+' : $count }}
+																	</span>
+																@endif
+															</div>
+															<div class="mt-1 text-xs text-slate-500">{{ optional($createdAt)->diffForHumans() }}</div>
+														</div>
+													</div>
+													</a>
+												@endforeach
+											@endif
+										</div>
+									</div>
+								</div>
 								<div class="hidden text-sm font-medium text-slate-700 sm:block">{{ auth()->user()->name }}</div>
 								<a href="{{ route('profile.edit') }}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
 									Profile
@@ -201,6 +350,40 @@
 							</div>
 						</div>
 					</header>
+
+					<script>
+						(function () {
+							const btn = document.getElementById('gb-notif-btn');
+							const panel = document.getElementById('gb-notif-panel');
+							if (!btn || !panel) return;
+
+							function close() {
+								panel.classList.add('hidden');
+								btn.setAttribute('aria-expanded', 'false');
+							}
+
+							function toggle() {
+								panel.classList.toggle('hidden');
+								btn.setAttribute('aria-expanded', panel.classList.contains('hidden') ? 'false' : 'true');
+							}
+
+							btn.addEventListener('click', (e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								toggle();
+							});
+
+							document.addEventListener('click', (e) => {
+								if (panel.classList.contains('hidden')) return;
+								if (panel.contains(e.target) || btn.contains(e.target)) return;
+								close();
+							});
+
+							document.addEventListener('keydown', (e) => {
+								if (e.key === 'Escape') close();
+							});
+						})();
+					</script>
 
 					<!-- Mobile menu overlay (small screens only) -->
 					<div id="gb-mobile-nav" style="display:none; position: fixed; inset: 0; z-index: 60;">

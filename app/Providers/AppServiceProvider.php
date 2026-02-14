@@ -78,6 +78,9 @@ class AppServiceProvider extends ServiceProvider
             // Create a view-only role for convenience.
             DB::table('roles')->upsert([
                 ['name' => 'viewer', 'guard_name' => 'web', 'created_at' => $now, 'updated_at' => $now],
+                ['name' => 'admin', 'guard_name' => 'web', 'created_at' => $now, 'updated_at' => $now],
+                ['name' => 'manager', 'guard_name' => 'web', 'created_at' => $now, 'updated_at' => $now],
+                ['name' => 'member', 'guard_name' => 'web', 'created_at' => $now, 'updated_at' => $now],
             ], ['name', 'guard_name'], ['updated_at']);
 
             $viewerRoleId = DB::table('roles')->where('name', 'viewer')->where('guard_name', 'web')->value('id');
@@ -101,6 +104,31 @@ class AppServiceProvider extends ServiceProvider
 
                     DB::table('role_has_permissions')->upsert(
                         $rolePermRows,
+                        ['permission_id', 'role_id'],
+                        []
+                    );
+                }
+            }
+
+            // Ensure baseline comment permission for core roles so they can comment.
+            $commentCreatePermissionId = DB::table('permissions')
+                ->where('guard_name', 'web')
+                ->where('name', 'comments.create')
+                ->value('id');
+
+            if ($commentCreatePermissionId) {
+                $roleIds = DB::table('roles')
+                    ->where('guard_name', 'web')
+                    ->whereIn('name', ['admin', 'manager', 'member', 'viewer'])
+                    ->pluck('id');
+
+                if ($roleIds->isNotEmpty()) {
+                    $rows = $roleIds
+                        ->map(fn ($roleId) => ['permission_id' => $commentCreatePermissionId, 'role_id' => $roleId])
+                        ->all();
+
+                    DB::table('role_has_permissions')->upsert(
+                        $rows,
                         ['permission_id', 'role_id'],
                         []
                     );

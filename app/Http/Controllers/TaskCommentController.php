@@ -7,8 +7,10 @@ use App\Models\Task;
 use App\Models\TaskAttachment;
 use App\Models\TaskComment;
 use App\Models\Team;
+use App\Notifications\TaskCommentAddedNotification;
 use App\Rules\AllowedTaskAttachment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Mews\Purifier\Facades\Purifier;
 
 class TaskCommentController extends Controller
@@ -68,6 +70,30 @@ class TaskCommentController extends Controller
             'user_id' => auth()->id(),
             'body' => $plain === '' ? '' : $body,
         ]);
+
+        $teamId = (int) (Project::query()->where('id', $task->project_id)->value('team_id') ?? 0);
+        if ($teamId > 0) {
+            $ownerId = (int) (Team::query()->where('id', $teamId)->value('user_id') ?? 0);
+            $memberIds = DB::table('team_user')->where('team_id', $teamId)->pluck('user_id')->map(fn ($v) => (int) $v);
+
+            $recipientIds = collect([$ownerId])
+                ->merge($memberIds)
+                ->filter(fn ($id) => (int) $id > 0)
+                ->unique()
+                ->reject(fn ($id) => (int) $id === (int) auth()->id())
+                ->values();
+
+            if ($recipientIds->isNotEmpty()) {
+                $users = \App\Models\User::query()->whereIn('id', $recipientIds)->get();
+                foreach ($users as $user) {
+                    $user->notify(new TaskCommentAddedNotification(
+                        task: $task,
+                        comment: $comment,
+                        commenterName: (string) (auth()->user()?->name ?? 'Someone'),
+                    ));
+                }
+            }
+        }
 
         $createdIds = [];
         if (is_array($uploaded) && !empty($uploaded)) {

@@ -186,10 +186,10 @@
 									<div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
 										<div class="text-sm font-semibold text-slate-900">{{ $author?->name ?? 'Unknown' }}</div>
 										@if($t === 'comment')
-											<div class="text-xs text-slate-500">{{ $at?->format('M j, Y') }}</div>
+											<div class="text-xs text-slate-500">{{ $at?->format('M j, Y g:i A') }}</div>
 										@else
 											<div class="text-sm text-slate-500">attached</div>
-											<div class="text-xs text-slate-500">· {{ $at?->format('M j, Y') }}</div>
+											<div class="text-xs text-slate-500">· {{ $at?->format('M j, Y g:i A') }}</div>
 										@endif
 									</div>
 									@if($t === 'comment')
@@ -334,7 +334,7 @@
 									<div class="text-sm text-slate-700">
 										<span class="font-semibold text-slate-900">{{ $user?->name ?? 'Someone' }}</span>
 										created this task
-										<span class="text-slate-500">· {{ $at?->format('M j, Y') }}</span>
+										<span class="text-slate-500">· {{ $at?->format('M j, Y g:i A') }}</span>
 									</div>
 								@elseif(($evt['type'] ?? '') === 'change')
 									@php
@@ -390,7 +390,7 @@
 										<span class="font-semibold text-slate-900">{{ $user?->name ?? 'Someone' }}</span>
 										{{ $msg }}
 										@if($at)
-											<span class="text-slate-500">· {{ $at->format('M j, Y') }}</span>
+											<span class="text-slate-500">· {{ $at->format('M j, Y g:i A') }}</span>
 										@endif
 									</div>
 									@if($ct === 'attachments.added')
@@ -409,7 +409,7 @@
 								@else
 									<div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
 										<div class="text-sm font-semibold text-slate-900">{{ $user?->name ?? 'Unknown' }}</div>
-										<div class="text-xs text-slate-500">{{ $at?->format('M j, Y') }}</div>
+										<div class="text-xs text-slate-500">{{ $at?->format('M j, Y g:i A') }}</div>
 									</div>
 									<div class="mt-1 whitespace-pre-wrap text-sm text-slate-700">{{ $evt['body'] ?? '' }}</div>
 								@endif

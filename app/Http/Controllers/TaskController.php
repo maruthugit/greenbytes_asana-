@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Models\TaskActivity;
 use App\Models\TaskAttachment;
 use App\Rules\AllowedTaskAttachment;
+use App\Notifications\TaskAssignedNotification;
+use App\Notifications\TaskCommentAddedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -561,6 +563,20 @@ class TaskController extends Controller
             'image_path' => $imagePath,
         ]);
 
+        if (!empty($task->assigned_to) && (int) $task->assigned_to !== (int) auth()->id()) {
+            $assignee = \App\Models\User::query()->find((int) $task->assigned_to);
+            if ($assignee) {
+                try {
+                    $assignee->notify(new TaskAssignedNotification(
+                        task: $task,
+                        assignerName: (string) (auth()->user()?->name ?? 'Someone'),
+                    ));
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
+        }
+
         $uploaded = $request->file('attachments', []);
         if (is_array($uploaded) && !empty($uploaded)) {
             $createdIds = [];
@@ -599,6 +615,19 @@ class TaskController extends Controller
             'activities.user',
             'attachments',
         ]);
+
+        $user = auth()->user();
+        if ($user) {
+            $user->unreadNotifications()
+                ->where('type', TaskCommentAddedNotification::class)
+                ->where('data->task_id', (int) $task->id)
+                ->update(['read_at' => now()]);
+
+            $user->unreadNotifications()
+                ->where('type', TaskAssignedNotification::class)
+                ->where('data->task_id', (int) $task->id)
+                ->update(['read_at' => now()]);
+        }
 
         return view('tasks.show', [
             'task' => $task,
@@ -681,6 +710,20 @@ class TaskController extends Controller
         }
 
         $task->save();
+
+        if ($assigneeChanged && !empty($task->assigned_to) && (int) $task->assigned_to !== (int) auth()->id()) {
+            $assignee = \App\Models\User::query()->find((int) $task->assigned_to);
+            if ($assignee) {
+                try {
+                    $assignee->notify(new TaskAssignedNotification(
+                        task: $task,
+                        assignerName: (string) (auth()->user()?->name ?? 'Someone'),
+                    ));
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
+        }
 
         $uploaded = $request->file('attachments', []);
         if (is_array($uploaded) && !empty($uploaded)) {
